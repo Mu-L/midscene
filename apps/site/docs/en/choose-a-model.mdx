@@ -49,8 +49,20 @@ For more details about UI-TARS, see [Github - UI-TARS](https://github.com/byteda
 
 The output of `UI-TARS` is different from the general-purpose LLMs. Some extra work is needed to adapt it. You should append the following config to enable this feature.
 
+```diff
+# add this
++ MIDSCENE_USE_VLM_UI_TARS=1
+
+# regular config
+OPENAI_BASE_URL="http://127.0.0.1:11434/v1" 
+OPENAI_API_KEY="any-key"
+MIDSCENE_MODEL_NAME="ui-tars:latest"
+```
+
+If you are using Ollama and Midscene Chrome extension, make sure to config the `OLLAMA_ORIGINS` params while launching `ollama serve` to prevent 403 error.
+
 ```bash
-MIDSCENE_USE_VLM_UI_TARS=1
+OLLAMA_ORIGINS="*" ollama serve
 ```
 
 ## Under the hood

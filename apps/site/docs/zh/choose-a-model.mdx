@@ -48,8 +48,20 @@ UI-TARS 是一个开源模型，并提供了不同大小的版本。你可以部
 
 UI-TARS 的输出与通用 LLM 的输出不同。你需要添加以下配置来启用这个功能。
 
+```diff
+# 新增这个配置
++ MIDSCENE_USE_VLM_UI_TARS=1
+
+# 常规配置
+OPENAI_BASE_URL="http://127.0.0.1:11434/v1" 
+OPENAI_API_KEY="any-key"
+MIDSCENE_MODEL_NAME="ui-tars:latest"
+```
+
+如果使用 Ollama 和 Midscene Chrome 扩展，请确保在启动 `ollama serve` 时配置 `OLLAMA_ORIGINS` 参数，以防止 403 错误。
+
 ```bash
-MIDSCENE_USE_VLM_UI_TARS=1
+OLLAMA_ORIGINS="*" ollama serve
 ```
 
 ## 底层原理
