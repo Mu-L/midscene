@@ -7,9 +7,9 @@ import type { MidsceneYamlScriptEnv } from '@midscene/core';
 export const defaultUA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36';
 export const defaultViewportWidth = 1440;
-export const defaultViewportHeight = 900;
+export const defaultViewportHeight = 768;
 export const defaultViewportScale = process.platform === 'darwin' ? 2 : 1;
-export const defaultWaitForNetworkIdleTimeout = 10 * 1000;
+export const defaultWaitForNetworkIdleTimeout = 6 * 1000;
 
 interface FreeFn {
   name: string;
@@ -156,6 +156,7 @@ export async function puppeteerAgentForTarget(
     headed?: boolean;
     keepWindow?: boolean;
     testId?: string;
+    cacheId?: string;
   },
 ) {
   const { page, freeFn } = await launchPuppeteerPage(target, preference);
@@ -164,9 +165,10 @@ export async function puppeteerAgentForTarget(
   const agent = new PuppeteerAgent(page, {
     autoPrintReportMsg: false,
     testId: preference?.testId,
-    trackingActiveTab:
-      typeof target.trackingActiveTab !== 'undefined'
-        ? target.trackingActiveTab
+    cacheId: preference?.cacheId,
+    forceSameTabNavigation:
+      typeof target.forceSameTabNavigation !== 'undefined'
+        ? target.forceSameTabNavigation
         : true, // true for default in yaml script
   });
 

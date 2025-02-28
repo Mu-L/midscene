@@ -1,7 +1,7 @@
 {
   "name": "@midscene/web",
   "description": "Automate browser actions, extract data, and perform assertions using AI. It offers JavaScript SDK, Chrome extension, and support for scripting in YAML. See https://midscenejs.com/ for details.",
-  "version": "0.11.1",
+  "version": "0.12.3",
   "repository": "https://github.com/web-infra-dev/midscene",
   "homepage": "https://midscenejs.com/",
   "jsnext:source": "./src/index.ts",
@@ -100,7 +100,7 @@
     "test": "vitest --run",
     "test:u": "vitest --run -u",
     "test:ai": "AI_TEST_TYPE=web npm run test",
-    "test:ai:temp": "AI_TEST_TYPE=web BRIDGE_MODE=true vitest --run tests/ai/bridge/temp.test.ts",
+    "test:ai:temp": "MIDSCENE_CACHE=true AI_TEST_TYPE=web BRIDGE_MODE=true vitest --run tests/ai/bridge/open-new-tab.test.ts",
     "test:ai:bridge": "MIDSCENE_CACHE=true BRIDGE_MODE=true AI_TEST_TYPE=web npm run test --inspect tests/ai/bridge/temp.test.ts",
     "test:ai:cache": "MIDSCENE_CACHE=true AI_TEST_TYPE=web npm run test",
     "test:ai:all": "npm run test:ai:web && npm run test:ai:native",
@@ -111,9 +111,7 @@
     "e2e:report": "MIDSCENE_REPORT=true playwright test --config=playwright.config.ts",
     "e2e:cache": "MIDSCENE_CACHE=true playwright test --config=playwright.config.ts",
     "e2e:ui": "playwright test --config=playwright.config.ts --ui",
-    "e2e:ui:cache": "MIDSCENE_CACHE=true playwright test --config=playwright.config.ts --ui",
-    "e2e:generate-test-data": "GENERATE_TEST_DATA=true playwright test ./tests/ai/web/playwright/generate-test-data.spec.ts",
-    "e2e:generate-test-data:headed": "GENERATE_TEST_DATA=true playwright test ./tests/ai/web/playwright/generate-test-data.spec.ts --headed"
+    "e2e:ui:cache": "MIDSCENE_CACHE=true playwright test --config=playwright.config.ts --ui"
   },
   "files": ["static", "dist", "iife-script", "README.md", "bin"],
   "dependencies": {
@@ -146,7 +144,7 @@
     "playwright": "1.44.1",
     "puppeteer": "24.2.0",
     "typescript": "~5.0.4",
-    "vitest": "^1.6.0",
+    "vitest": "3.0.5",
     "webdriverio": "9.0.6"
   },
   "peerDependencies": {

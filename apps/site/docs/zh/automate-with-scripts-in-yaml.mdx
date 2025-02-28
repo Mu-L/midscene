@@ -148,11 +148,14 @@ target:
   # 输出 aiQuery 结果的 JSON 文件路径，可选
   output: <path-to-output-file>
 
-  # 是否跟踪新打开的标签页，可选，默认 true
-  trackingActiveTab: <boolean>
+  # 是否限制页面在当前 tab 打开，可选，默认 true
+  forceSameTabNavigation: <boolean>
 
   # 桥接模式，可选，默认 false，可以为 'newTabWithUrl' 或 'currentTab'。更多详情请参阅后文
   bridgeMode: false | 'newTabWithUrl' | 'currentTab'
+
+  # 是否在桥接断开时关闭新创建的标签页，可选，默认 false
+  closeNewTabsAfterDisconnect: <boolean>
 ```
 
 `tasks` 部分是一个数组，定义了脚本执行的步骤。记得在每个步骤前添加 `-` 符号。
@@ -207,30 +210,22 @@ topic=weather today
 
 ## 使用桥接模式
 
-通过使用桥接模式，你可以利用 YAML 脚本在已有的桌面浏览器上执行自动化。这对于需要复用 Cookies、插件和页面状态，或者需要手工与自动化脚本交互的情况非常有用。
+通过使用桥接模式，你可以利用 YAML 脚本在已有的桌面浏览器上执行自动化。这对于需要复用 Cookies、插件和页面状态，或者需要人工与自动化脚本交互的情况非常有用。
+
+使用桥接模式，你需要先安装 Chrome 扩展，然后在 `target` 部分使用以下配置：
+
+```diff
+target:
+  url: https://www.bing.com
++ bridgeMode: newTabWithUrl
+```
 
 请参阅 [通过 Chrome 扩展桥接模式](./bridge-mode-by-chrome-extension) 了解更多详细信息。
 
 ## 使用 JavaScript 运行 YAML 脚本
 
-你也可以使用 JavaScript 运行 YAML 脚本，调用 Agent 上的 `runYaml` 方法即可。注意，这种方法只会执行 YAML 脚本中的 `tasks` 部分。
+你也可以使用 JavaScript 运行 YAML 脚本，调用 Agent 上的 [`runYaml`](./api.html#runyaml) 方法即可。注意，这种方法只会执行 YAML 脚本中的 `tasks` 部分。
 
-```typescript
-const { result } = await agent.runYaml(`
-tasks:
-  - name: search weather
-    flow:
-      - ai: input 'weather today' in input box, click search button
-      - sleep: 3000
-
-  - name: query weather
-    flow:
-      - aiQuery: "the result shows the weather info, {description: string}"
-        name: weather
-`);
-```
-
-更多关于 agent 的 API，请参考 [API](./api)。
 
 ## FAQ
 
