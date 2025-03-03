@@ -1,5 +1,9 @@
 import assert from 'node:assert';
-import type { KeyboardAction, MouseAction } from '@/page';
+import type {
+  ChromePageDestroyOptions,
+  KeyboardAction,
+  MouseAction,
+} from '@/page';
 import ChromeExtensionProxyPage from '../chrome-extension/page';
 import {
   type BridgeConnectTabOptions,
@@ -12,8 +16,12 @@ import { BridgeClient } from './io-client';
 
 declare const __VERSION__: string;
 
-export class ChromeExtensionPageBrowserSide extends ChromeExtensionProxyPage {
+export class ExtensionBridgePageBrowserSide extends ChromeExtensionProxyPage {
   public bridgeClient: BridgeClient | null = null;
+
+  private destroyOptions?: ChromePageDestroyOptions;
+
+  private newlyCreatedTabIds: number[] = [];
 
   constructor(
     public onDisconnect: () => void = () => {},
@@ -21,9 +29,9 @@ export class ChromeExtensionPageBrowserSide extends ChromeExtensionProxyPage {
       message: string,
       type: 'log' | 'status',
     ) => void = () => {},
-    trackingActiveTab = false,
+    forceSameTabNavigation = true,
   ) {
-    super(trackingActiveTab);
+    super(forceSameTabNavigation);
   }
 
   private async setupBridgeClient() {
@@ -104,7 +112,7 @@ export class ChromeExtensionPageBrowserSide extends ChromeExtensionProxyPage {
   public async connectNewTabWithUrl(
     url: string,
     options: BridgeConnectTabOptions = {
-      trackingActiveTab: true,
+      forceSameTabNavigation: true,
     },
   ) {
     const tab = await chrome.tabs.create({ url });
@@ -113,15 +121,16 @@ export class ChromeExtensionPageBrowserSide extends ChromeExtensionProxyPage {
 
     // new tab
     this.onLogMessage(`Creating new tab: ${url}`, 'log');
+    this.newlyCreatedTabIds.push(tabId);
 
-    if (options?.trackingActiveTab) {
-      this.trackingActiveTab = true;
+    if (options?.forceSameTabNavigation) {
+      this.forceSameTabNavigation = true;
     }
   }
 
   public async connectCurrentTab(
     options: BridgeConnectTabOptions = {
-      trackingActiveTab: true,
+      forceSameTabNavigation: true,
     },
   ) {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -131,17 +140,30 @@ export class ChromeExtensionPageBrowserSide extends ChromeExtensionProxyPage {
 
     this.onLogMessage(`Connected to current tab: ${tabs[0]?.url}`, 'log');
 
-    if (options?.trackingActiveTab) {
-      this.trackingActiveTab = true;
+    if (options?.forceSameTabNavigation) {
+      this.forceSameTabNavigation = true;
     }
   }
 
+  public async setDestroyOptions(options: ChromePageDestroyOptions) {
+    this.destroyOptions = options;
+  }
+
   async destroy() {
+    if (this.destroyOptions?.closeTab && this.newlyCreatedTabIds.length > 0) {
+      this.onLogMessage('Closing all newly created tabs by bridge...', 'log');
+      for (const tabId of this.newlyCreatedTabIds) {
+        await chrome.tabs.remove(tabId);
+      }
+      this.newlyCreatedTabIds = [];
+    }
+
+    await super.destroy();
+
     if (this.bridgeClient) {
       this.bridgeClient.disconnect();
       this.bridgeClient = null;
       this.onDisconnect();
     }
-    super.destroy();
   }
 }

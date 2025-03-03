@@ -7,8 +7,9 @@
 
 import assert from 'node:assert';
 import type { WebKeyInput } from '@/common/page';
-import type { AbstractPage } from '@/page';
-import type { BaseElement, ElementTreeNode, Point, Size } from '@midscene/core';
+import { limitOpenNewTabScript } from '@/common/ui-utils';
+import type { AbstractPage, ChromePageDestroyOptions } from '@/page';
+import type { ElementTreeNode, Point, Size } from '@midscene/core';
 import type { ElementInfo } from '@midscene/shared/extractor';
 import { treeToList } from '@midscene/shared/extractor';
 import type { Protocol as CDPTypes } from 'devtools-protocol';
@@ -28,7 +29,7 @@ declare const __VERSION__: string;
 export default class ChromeExtensionProxyPage implements AbstractPage {
   pageType = 'chrome-extension-proxy';
 
-  public trackingActiveTab: boolean;
+  public forceSameTabNavigation: boolean;
   private version: string = __VERSION__;
 
   private viewportSize?: Size;
@@ -41,12 +42,12 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
 
   private destroyed = false;
 
-  constructor(trackingActiveTab: boolean) {
-    this.trackingActiveTab = trackingActiveTab;
+  constructor(forceSameTabNavigation: boolean) {
+    this.forceSameTabNavigation = forceSameTabNavigation;
   }
 
   public async getTabId() {
-    if (this.activeTabId && !this.trackingActiveTab) {
+    if (this.activeTabId && !this.forceSameTabNavigation) {
       return this.activeTabId;
     }
     const tabId = await chrome.tabs
@@ -68,6 +69,7 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
     // Create new attaching promise
     this.attachingDebugger = (async () => {
       const url = await this.url();
+      let error: Error | null = null;
       if (url.startsWith('chrome://')) {
         throw new Error(
           'Cannot attach debugger to chrome:// pages, please use Midscene in a normal page with http://, https:// or file://',
@@ -100,16 +102,22 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
         }
 
         // detach any debugger attached to the tab
+        console.log('attaching debugger', currentTabId);
         await chrome.debugger.attach({ tabId: currentTabId }, '1.3');
         // wait util the debugger banner in Chrome appears
         await sleep(500);
+
         this.tabIdOfDebuggerAttached = currentTabId;
 
         await this.enableWaterFlowAnimation();
-      } catch (error) {
-        console.error('Failed to attach debugger', error);
+      } catch (e) {
+        console.error('Failed to attach debugger', e);
+        error = e as Error;
       } finally {
         this.attachingDebugger = null;
+      }
+      if (error) {
+        throw error;
       }
     })();
 
@@ -144,19 +152,40 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
 
   private async detachDebugger(tabId?: number) {
     const tabIdToDetach = tabId || this.tabIdOfDebuggerAttached;
+    console.log('detaching debugger', tabIdToDetach);
     if (!tabIdToDetach) {
       console.warn('No tab id to detach');
       return;
     }
 
-    await this.disableWaterFlowAnimation(tabIdToDetach);
-    await sleep(200);
-    await chrome.debugger.detach({ tabId: tabIdToDetach });
+    try {
+      await this.disableWaterFlowAnimation(tabIdToDetach);
+      await sleep(200); // wait for the animation to stop
+    } catch (error) {
+      console.warn('Failed to disable water flow animation', error);
+    }
 
+    try {
+      await chrome.debugger.detach({ tabId: tabIdToDetach });
+    } catch (error) {
+      // maybe tab is closed ?
+      console.warn('Failed to detach debugger', error);
+    }
     this.tabIdOfDebuggerAttached = null;
   }
 
   private async enableWaterFlowAnimation() {
+    // limit open page in new tab
+    if (this.forceSameTabNavigation) {
+      await chrome.debugger.sendCommand(
+        { tabId: this.tabIdOfDebuggerAttached! },
+        'Runtime.evaluate',
+        {
+          expression: limitOpenNewTabScript,
+        },
+      );
+    }
+
     const script = await injectWaterFlowAnimation();
     // we will call this function in sendCommandToDebugger, so we have to use the chrome.debugger.sendCommand
     await chrome.debugger.sendCommand(
@@ -394,6 +423,9 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
     });
   }
 
+  private latestMouseX = 50;
+  private latestMouseY = 50;
+
   mouse = {
     click: async (x: number, y: number) => {
       await this.showMousePointer(x, y);
@@ -418,8 +450,8 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
       startX?: number,
       startY?: number,
     ) => {
-      const finalX = startX || 50;
-      const finalY = startY || 50;
+      const finalX = startX || this.latestMouseX;
+      const finalY = startY || this.latestMouseY;
       await this.showMousePointer(finalX, finalY);
       await this.sendCommandToDebugger('Input.dispatchMouseEvent', {
         type: 'mouseWheel',
@@ -428,6 +460,8 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
         deltaX,
         deltaY,
       });
+      this.latestMouseX = finalX;
+      this.latestMouseY = finalY;
     },
     move: async (x: number, y: number) => {
       await this.showMousePointer(x, y);
@@ -436,6 +470,8 @@ export default class ChromeExtensionProxyPage implements AbstractPage {
         x,
         y,
       });
+      this.latestMouseX = x;
+      this.latestMouseY = y;
     },
     drag: async (
       from: { x: number; y: number },
