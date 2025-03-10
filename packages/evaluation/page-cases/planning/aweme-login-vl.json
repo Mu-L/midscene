@@ -1,0 +1,12 @@
+{
+  "testDataPath": "aweme-login",
+  "testCases": [
+    {
+      "prompt": "type 'user' in the username input box, type '123456' in the password input box",
+      "log": "type 'user' in the username input box",
+      "response_planning": {
+        "error": "Failed to plan actions: The current screen does not have a username or password input box. It is showing a verification code login interface."
+      }
+    }
+  ]
+}

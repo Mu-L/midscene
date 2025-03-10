@@ -1,9 +1,0 @@
-{
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "baseUrl": "../",
-    "rootDir": "../"
-  },
-  "include": ["**/*", "../src", "../../evaluation/tests/test-analyzer.ts"],
-  "exclude": ["**/node_modules"]
-}
