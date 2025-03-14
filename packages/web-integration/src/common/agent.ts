@@ -11,8 +11,13 @@ import {
 } from '@midscene/core';
 import { NodeType } from '@midscene/shared/constants';
 
-import { ScriptPlayer, parseYamlScript } from '@/yaml';
-import { MIDSCENE_USE_VLM_UI_TARS, getAIConfig } from '@midscene/core/env';
+import { ScriptPlayer, parseYamlScript } from '@/yaml/index';
+import {
+  MATCH_BY_POSITION,
+  MIDSCENE_USE_VLM_UI_TARS,
+  getAIConfig,
+  getAIConfigInBoolean,
+} from '@midscene/core/env';
 import {
   groupedActionDumpFileExt,
   reportHTMLContent,
@@ -27,7 +32,7 @@ import { printReportMsg, reportFileName } from './utils';
 import { type WebUIContext, parseContextFromWebPage } from './utils';
 
 export interface PageAgentOpt {
-  trackingActiveTab?: boolean /* if tracking the newly created tab, default false */;
+  forceSameTabNavigation?: boolean /* if limit the new tab to the current page, default true */;
   testId?: string;
   cacheId?: string;
   groupName?: string;
@@ -105,7 +110,9 @@ export class PageAgent<PageType extends WebPage = WebPage> {
         ignoreMarker: true,
       });
     }
-    return await parseContextFromWebPage(this.page);
+    return await parseContextFromWebPage(this.page, {
+      ignoreMarker: getAIConfigInBoolean(MATCH_BY_POSITION),
+    });
   }
 
   resetDump() {
@@ -162,7 +169,10 @@ export class PageAgent<PageType extends WebPage = WebPage> {
   }
 
   async aiAction(taskPrompt: string) {
-    if (getAIConfig(MIDSCENE_USE_VLM_UI_TARS)) {
+    if (
+      getAIConfig(MIDSCENE_USE_VLM_UI_TARS) // ||
+      // getAIConfig(MIDSCENE_USE_QWEN_VL) // ING
+    ) {
       const { executor } = await this.taskExecutor.actionToGoal(taskPrompt, {
         onTaskStart: this.callbackOnTaskStartTip.bind(this),
       });
@@ -226,6 +236,7 @@ export class PageAgent<PageType extends WebPage = WebPage> {
       timeoutMs: opt?.timeoutMs || 15 * 1000,
       checkIntervalMs: opt?.checkIntervalMs || 3 * 1000,
       assertion,
+      onTaskStart: this.callbackOnTaskStartTip.bind(this),
     });
     this.appendExecutionDump(executor.dump());
     this.writeOutActionDumps();

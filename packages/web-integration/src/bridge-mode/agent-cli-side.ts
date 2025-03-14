@@ -1,6 +1,10 @@
-import assert from 'node:assert';
 import { PageAgent, type PageAgentOpt } from '@/common/agent';
-import type { KeyboardAction, MouseAction } from '@/page';
+import type {
+  ChromePageDestroyOptions,
+  KeyboardAction,
+  MouseAction,
+} from '@/page';
+import { assert } from '@midscene/shared/utils';
 import {
   type BridgeConnectTabOptions,
   BridgeEvent,
@@ -10,9 +14,9 @@ import {
   MouseEvent,
 } from './common';
 import { BridgeServer } from './io-server';
-import type { ChromeExtensionPageBrowserSide } from './page-browser-side';
+import type { ExtensionBridgePageBrowserSide } from './page-browser-side';
 
-interface ChromeExtensionPageCliSide extends ChromeExtensionPageBrowserSide {
+interface ChromeExtensionPageCliSide extends ExtensionBridgePageBrowserSide {
   showStatusMessage: (message: string) => Promise<void>;
 }
 
@@ -77,11 +81,12 @@ export const getBridgePageInCliSide = (): ChromeExtensionPageCliSide => {
       }
 
       if (prop === 'destroy') {
-        return async () => {
+        return async (...args: any[]) => {
           try {
-            await bridgeCaller('destroy');
+            const caller = bridgeCaller('destroy');
+            await caller(...args);
           } catch (e) {
-            console.error('error calling destroy', e);
+            // console.error('error calling destroy', e);
           }
           return server.close();
         };
@@ -93,7 +98,9 @@ export const getBridgePageInCliSide = (): ChromeExtensionPageCliSide => {
 };
 
 export class AgentOverChromeBridge extends PageAgent<ChromeExtensionPageCliSide> {
-  constructor(opts?: PageAgentOpt) {
+  private destroyAfterDisconnectFlag?: boolean;
+
+  constructor(opts?: PageAgentOpt & { closeNewTabsAfterDisconnect?: boolean }) {
     const page = getBridgePageInCliSide();
     super(
       page,
@@ -103,16 +110,27 @@ export class AgentOverChromeBridge extends PageAgent<ChromeExtensionPageCliSide>
         },
       }),
     );
+    this.destroyAfterDisconnectFlag = opts?.closeNewTabsAfterDisconnect;
+  }
+
+  async setDestroyOptionsAfterConnect() {
+    if (this.destroyAfterDisconnectFlag) {
+      this.page.setDestroyOptions({
+        closeTab: true,
+      });
+    }
   }
 
   async connectNewTabWithUrl(url: string, options?: BridgeConnectTabOptions) {
     await this.page.connectNewTabWithUrl(url, options);
     await sleep(500);
+    await this.setDestroyOptionsAfterConnect();
   }
 
   async connectCurrentTab(options?: BridgeConnectTabOptions) {
     await this.page.connectCurrentTab(options);
     await sleep(500);
+    await this.setDestroyOptionsAfterConnect();
   }
 
   async aiAction(prompt: string, options?: any) {
@@ -122,5 +140,14 @@ export class AgentOverChromeBridge extends PageAgent<ChromeExtensionPageCliSide>
       );
     }
     return await super.aiAction(prompt);
+  }
+
+  async destroy(closeNewTabsAfterDisconnect?: boolean) {
+    if (typeof closeNewTabsAfterDisconnect === 'boolean') {
+      await this.page.setDestroyOptions({
+        closeTab: closeNewTabsAfterDisconnect,
+      });
+    }
+    await super.destroy();
   }
 }

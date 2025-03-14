@@ -1,9 +1,5 @@
-import assert from 'node:assert';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import type { StaticPage } from '@/playground';
 import type {
-  BaseElement,
   ElementTreeNode,
   PlaywrightParserOpt,
   UIContext,
@@ -17,13 +13,11 @@ import { uploadTestInfoToServer } from '@midscene/core/utils';
 import { NodeType } from '@midscene/shared/constants';
 import type { ElementInfo } from '@midscene/shared/extractor';
 import { traverseTree, treeToList } from '@midscene/shared/extractor';
-import { findNearestPackageJson } from '@midscene/shared/fs';
-import { compositeElementInfoImg } from '@midscene/shared/img';
-import { uuid } from '@midscene/shared/utils';
+import { compositeElementInfoImg, resizeImgBase64 } from '@midscene/shared/img';
+import { assert, uuid } from '@midscene/shared/utils';
 import dayjs from 'dayjs';
 import { WebElementInfo } from '../web-element';
 import type { WebPage } from './page';
-
 export type WebUIContext = UIContext<WebElementInfo> & {
   url: string;
 };
@@ -77,15 +71,20 @@ export async function parseContextFromWebPage(
   );
 
   const size = await page.size();
-  let screenshotBase64WithElementMarker = screenshotBase64;
 
+  if (size.dpr && size.dpr > 1) {
+    // console.time('resizeImgBase64');
+    screenshotBase64 = await resizeImgBase64(screenshotBase64, {
+      width: size.width,
+      height: size.height,
+    });
+    // console.timeEnd('resizeImgBase64');
+  }
+
+  let screenshotBase64WithElementMarker = screenshotBase64;
   if (!getAIConfig(MIDSCENE_USE_VLM_UI_TARS)) {
     if (_opt?.ignoreMarker) {
-      screenshotBase64WithElementMarker = await compositeElementInfoImg({
-        inputImgBase64: screenshotBase64,
-        elementsPositionInfo: [],
-        size,
-      });
+      screenshotBase64WithElementMarker = screenshotBase64;
     } else {
       screenshotBase64WithElementMarker = await compositeElementInfoImg({
         inputImgBase64: screenshotBase64,
@@ -104,46 +103,6 @@ export async function parseContextFromWebPage(
     url,
   };
 }
-
-export async function getExtraReturnLogic(tree = false) {
-  const pathDir = findNearestPackageJson(__dirname);
-  assert(pathDir, `can't find pathDir, with ${__dirname}`);
-  const scriptPath = path.join(pathDir, './iife-script/htmlElement.js');
-  const elementInfosScriptContent = readFileSync(scriptPath, 'utf-8');
-  if (tree) {
-    return `${elementInfosScriptContent}midscene_element_inspector.webExtractNodeTree()`;
-  }
-  return `${elementInfosScriptContent}midscene_element_inspector.webExtractTextWithPosition()`;
-}
-
-const sizeThreshold = 3;
-// async function alignElements(
-//   elements: ElementInfo[],
-//   page: WebPage,
-// ): Promise<WebElementInfo[]> {
-//   const validElements = elements.filter((item) => {
-//     return (
-//       item.rect.height >= sizeThreshold && item.rect.width >= sizeThreshold
-//     );
-//   });
-//   const textsAligned: WebElementInfo[] = [];
-//   for (const item of validElements) {
-//     const { rect, id, content, attributes, locator, indexId } = item;
-//     textsAligned.push(
-//       new WebElementInfo({
-//         rect,
-//         locator,
-//         id,
-//         content,
-//         attributes,
-//         page,
-//         indexId,
-//       }),
-//     );
-//   }
-
-//   return textsAligned;
-// }
 
 export function reportFileName(tag = 'web') {
   const reportTagName = getAIConfig(MIDSCENE_REPORT_TAG_NAME);

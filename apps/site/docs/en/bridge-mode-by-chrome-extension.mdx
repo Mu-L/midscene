@@ -14,7 +14,7 @@ you can check the demo project of bridge mode here: [https://github.com/web-infr
 
 ## Preparation
 
-1. Config the OpenAI API key, or [config model and provider](./model-provider)
+1. Config the OpenAI API key, or [Choose a model](./choose-a-model)
 
 ```bash
 # replace with your own
@@ -53,9 +53,15 @@ Promise.resolve(
 );
 ```
 
-## Step 3. run
+## Step 3. start the chrome extension
 
-Launch your desktop Chrome. Start Midscene extension and switch to 'Bridge Mode' tab. Click "Allow connection".
+Start the chrome extension and switch to 'Bridge Mode' tab. Click "Allow connection".
+
+<p align="center">
+  <img src="/bridge_in_extension.jpg" alt="bridge in extension" width="400"/>
+</p>
+
+## Step 4. run the script
 
 Run your scripts
 
@@ -65,11 +71,23 @@ tsx demo-new-tab.ts
 
 After executing the script, you should see the status of the Chrome extension switched to 'connected', and a new tab has been opened. Now this tab is controlled by your scripts.
 
-:::info
+:::tip
 ⁠Whether the scripts are run before or after clicking 'Allow connection' in the browser is not significant.
 :::
 
-## API
+## Constructor
+
+```typescript
+import { AgentOverChromeBridge } from "@midscene/web/bridge-mode";
+
+const agent = new AgentOverChromeBridge();
+```
+
+Except [the normal parameters in the agent constructor](./api), `AgentOverChromeBridge` accepts one more parameter:
+
+* `closeNewTabsAfterDisconnect?: boolean`: If true, the newly created tab will be closed when the bridge is destroyed. Default is false.
+
+## Methods
 
 Except [the normal agent interface](./api), `AgentOverChromeBridge` provides some other interfaces to control the desktop Chrome.
 
@@ -78,20 +96,91 @@ You should always call `connectCurrentTab` or `connectNewTabWithUrl` before doin
 
 Each of the agent instance can only connect to one tab instance, and it cannot be reconnected after destroy.
 :::
+### `connectCurrentTab()`
 
-### `connectCurrentTab(options?: { trackingActiveTab?: boolean })`
+Connect to the currently active tab.
 
-Connect to the current active tab on Chrome as the starting point.
+* Type
 
-If `trackingActiveTab` is true, the agent will always track the active tab. For example, if you switch to another tab or a new tab is opened, the agent will track the latest active tab. Otherwise, the agent will only track the tab you connected to initially.
+```typescript
+function connectCurrentTab(options?: { 
+  forceSameTabNavigation?: boolean 
+}): Promise<void>;
+```
 
-### `connectNewTabWithUrl(url: string, options?: { trackingActiveTab?: boolean })`
+* Parameters:
+  * `options?: object` - Optional configuration object
+    * `forceSameTabNavigation?: boolean` - If true (default), restricts pages from opening new tabs, forcing new pages to open in the current tab to prevent AI operation failures due to manual tab switching. This configuration usually doesn't need to be changed
 
-Create a new tab with url and connect to immediately.
+* Returns:
+  * Returns a Promise that resolves to void when connected successfully; throws an error if connection fails
 
-### `destroy`
+* Example:
 
-Destroy the connection.
+```typescript
+try {
+  await agent.connectCurrentTab();
+  console.log('Successfully connected to current tab');
+} catch (err) {
+  console.error('Connection failed:', err.message);
+}
+```
+
+### `connectNewTabWithUrl()`
+
+Create a new tab and connect to it immediately.
+
+* Type
+
+```typescript
+function connectNewTabWithUrl(
+  url: string,
+  options?: { 
+    forceSameTabNavigation?: boolean 
+  }
+): Promise<void>;
+```
+
+* Parameters:
+  * `url: string` - URL to open in the new tab
+  * `options?: object` - Optional configuration object (same parameters as connectCurrentTab)
+
+* Returns:
+  * Returns a Promise that resolves to void when connected successfully; throws an error if connection fails
+
+* Example:
+
+```typescript
+// Open Bing and wait for connection
+await agent.connectNewTabWithUrl(
+  "https://www.bing.com",
+  { forceSameTabNavigation: false }
+);
+```
+
+### `destroy()`
+
+Destroy the connection and release resources.
+
+* Type
+
+```typescript
+function destroy(closeNewTabsAfterDisconnect?: boolean): Promise<void>;
+```
+
+* Parameters:
+  * `closeNewTabsAfterDisconnect?: boolean` - If true, the newly created tab will be closed when the bridge is destroyed. Default is false. The will override the `closeNewTabsAfterDisconnect` parameter in the constructor.
+
+* Returns:
+  * Returns a Promise that resolves to void when destruction completes
+
+* Example:
+
+```typescript
+// Destroy connection after completing operations
+await agent.ai('Perform final operation...');
+await agent.destroy();
+```
 
 ## Use bridge mode in yaml-script
 
@@ -99,12 +188,15 @@ Destroy the connection.
 
 To use bridge mode in yaml script, set the `bridgeMode` property in the `target` section. If you want to use the current tab, set it to `currentTab`, otherwise set it to `newTabWithUrl`.
 
+Set `closeNewTabsAfterDisconnect` to true if you want to close the newly created tabs when the bridge is destroyed. This is optional and the default value is false.
+
 For example, the following script will open a new tab by Chrome extension bridge: 
 
 ```diff
 target:
   url: https://www.bing.com
 + bridgeMode: newTabWithUrl
++ closeNewTabsAfterDisconnect: true
 tasks:
 ```
 

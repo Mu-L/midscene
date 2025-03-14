@@ -2,9 +2,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe } from 'node:test';
 import { AiAssert } from '@midscene/core';
-import { buildContext } from '@midscene/core/evaluation';
 import { afterAll, expect, test } from 'vitest';
-import { type InspectAiTestCase, repeatFile } from './util';
+import { buildContext, getCases } from './util';
 
 import 'dotenv/config';
 import dotenv from 'dotenv';
@@ -14,9 +13,9 @@ dotenv.config({
   override: true,
 });
 
-const testSources = ['online_order'];
+const testSources = ['online_order', 'online_order_list'];
 
-describe('ai inspect element', () => {
+describe('ai assertion', () => {
   const testResult: {
     path: string;
     result: {
@@ -37,29 +36,24 @@ describe('ai inspect element', () => {
       }),
     );
   });
-  repeatFile(testSources, 1, (source, repeatIndex) => {
-    const aiDataPath = path.join(
-      __dirname,
-      `../page-cases/assertion/${source}.json`,
-    );
-    const aiData = JSON.parse(
-      readFileSync(aiDataPath, 'utf-8'),
-    ) as InspectAiTestCase;
 
-    aiData.testCases.forEach((testCase, index) => {
+  for (const source of testSources) {
+    const { path: aiDataPath, content: cases } = getCases(source, 'assertion');
+
+    cases.testCases.forEach((testCase, index) => {
       const prompt = testCase.prompt;
+      console.log('prompt', prompt);
       test(
-        `${source}-${repeatIndex}: assertion-${prompt.slice(0, 30)}...`,
+        `${source}: assertion-${prompt.slice(0, 30)}...`,
         async () => {
-          const { context } = await buildContext(
-            path.join(__dirname, '../page-data/', aiData.testDataPath),
-          );
+          const context = await buildContext(source);
 
           const { prompt, expected } = testCase;
           const result = await AiAssert({
             assertion: prompt,
             context,
           });
+          console.log('assertion result', result);
 
           expect(typeof result?.content?.pass).toBe('boolean');
           if (result?.content?.pass !== expected) {
@@ -67,13 +61,9 @@ describe('ai inspect element', () => {
               `assertion failed: ${prompt} expected: ${expected}, actual: ${result?.content?.pass}, thought: ${result?.content?.thought}`,
             );
           }
-
-          console.log('assertion passed, thought:', result?.content?.thought);
         },
-        {
-          timeout: 3 * 60 * 1000,
-        },
+        3 * 60 * 1000,
       );
     });
-  });
+  }
 });

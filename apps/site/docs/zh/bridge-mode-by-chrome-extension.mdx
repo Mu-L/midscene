@@ -53,9 +53,15 @@ Promise.resolve(
 );
 ```
 
-## 第三步：运行脚本
+## 第三步：启动 Chrome 插件
 
-启动你的桌面 Chrome。启动 Midscene 插件，并切换到 'Bridge Mode' 标签页。点击 "Allow connection"。
+启动你的桌面 Chrome 和 Midscene 插件，并切换到 'Bridge Mode' 标签页。点击 "Allow connection"。
+
+<p align="center">
+  <img src="/bridge_in_extension.jpg" alt="bridge in extension" width="400"/>
+</p>
+
+## 第四步：运行脚本
 
 运行你的脚本
 
@@ -69,7 +75,19 @@ tsx demo-new-tab.ts
 执行脚本和点击插件中的 'Allow connection' 按钮没有顺序要求。
 :::
 
-## API
+## 构造器
+
+```typescript
+import { AgentOverChromeBridge } from "@midscene/web/bridge-mode";
+
+const agent = new AgentOverChromeBridge();
+```
+
+除了 [普通 Agent 构造器](./api) 的参数，`AgentOverChromeBridge` 还接受以下参数：
+
+* `closeNewTabsAfterDisconnect?: boolean`: 如果为 true，当桥接断开时，所有新创建的标签页都将被自动关闭。默认值为 false。
+
+## 方法
 
 除了 [普通的 Agent 接口](./api)，`AgentOverChromeBridge` 还提供了一些额外的接口来控制桌面 Chrome。
 
@@ -79,19 +97,91 @@ tsx demo-new-tab.ts
 每个 agent 实例只能连接到一个标签页实例，并且一旦被销毁就无法重新连接，需要重新创建 agent 实例。
 :::
 
-### `connectCurrentTab(options?: { trackingActiveTab?: boolean })`
+### `connectCurrentTab()`
 
 连接到当前已激活的标签页。
 
-如果 `trackingActiveTab` 为 true，则 agent 将始终跟踪当前激活的标签页。例如，如果你切换到另一个标签页或打开一个新的标签页，agent 将跟踪最新激活的标签页。否则，agent 将只跟踪你最初连接的标签页。
+* 类型
 
-### `connectNewTabWithUrl(url: string, options?: { trackingActiveTab?: boolean })`
+```typescript
+function connectCurrentTab(options?: { 
+  forceSameTabNavigation?: boolean 
+}): Promise<void>;
+```
+
+* 参数：
+  * `options?: object` - 可选配置对象
+    * `forceSameTabNavigation?: boolean` - 如果为 true（默认值），限制页面打开新的标签页，让新的页面始终在旧的标签页中打开避免人为切换标签页导致 AI 操作失败，正常情况下都不需要更改此配置
+
+* 返回值：
+  * 返回一个 Promise。连接成功时解析为 void；若连接失败则抛出错误
+
+* 示例：
+
+```typescript
+try {
+  await agent.connectCurrentTab();
+  console.log('成功连接到当前标签页');
+} catch (err) {
+  console.error('连接失败:', err.message);
+}
+```
+
+### `connectNewTabWithUrl()`
 
 创建一个新标签页，并立即连接到它。
 
-### `destroy`
+* 类型
 
-销毁连接。
+```typescript
+function connectNewTabWithUrl(
+  url: string,
+  options?: { 
+    forceSameTabNavigation?: boolean 
+  }
+): Promise<void>;
+```
+
+* 参数：
+  * `url: string` - 新标签页要打开的 URL
+  * `options?: object` - 可选配置对象（参数同 connectCurrentTab）
+
+* 返回值：
+  * 返回一个 Promise。连接成功时解析为 void；若连接失败则抛出错误
+
+* 示例：
+
+```typescript
+// 打开 Bing 并等待连接
+await agent.connectNewTabWithUrl(
+  "https://www.bing.com",
+  { forceSameTabNavigation: false }
+);
+```
+
+### `destroy()`
+
+销毁连接并释放资源。
+
+* 类型
+
+```typescript
+function destroy(closeNewTabsAfterDisconnect?: boolean): Promise<void>;
+```
+
+* 参数：
+  * `closeNewTabsAfterDisconnect?: boolean` - 如果为 true，当桥接断开时，所有新创建的标签页都将被自动关闭。默认值为 false。这个参数将覆盖构造器中的 `closeNewTabsAfterDisconnect` 参数。
+
+* 返回值：
+  * 返回一个 Promise，销毁完成后解析为 void
+
+* 示例：
+
+```typescript
+// 完成操作后销毁连接
+await agent.ai('执行最终操作...');
+await agent.destroy();
+```
 
 ### 更多接口
 

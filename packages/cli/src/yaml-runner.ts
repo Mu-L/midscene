@@ -46,6 +46,7 @@ export async function playYamlFiles(
       headed: options?.headed,
       keepWindow: options?.keepWindow,
       testId: fileName,
+      cacheId: fileName,
     };
     const player = new ScriptPlayer(script, async (target) => {
       const freeFn: FreeFn[] = [];
@@ -96,11 +97,15 @@ export async function playYamlFiles(
         target.cookie
       ) {
         console.warn(
-          'puppeteer options (userAgent, viewportWidth, viewportHeight, viewportScale, waitForNetworkIdle, cookie) are not supported in bridge mode, will be ignored',
+          'puppeteer options (userAgent, viewportWidth, viewportHeight, viewportScale, waitForNetworkIdle, cookie) are not supported in bridge mode. They will be ignored.',
         );
       }
 
-      const agent = new AgentOverChromeBridge();
+      const agent = new AgentOverChromeBridge({
+        closeNewTabsAfterDisconnect: target.closeNewTabsAfterDisconnect,
+        cacheId: fileName,
+      });
+
       if (target.bridgeMode === 'newTabWithUrl') {
         await agent.connectNewTabWithUrl(target.url);
       } else {

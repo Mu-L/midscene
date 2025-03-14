@@ -1,14 +1,22 @@
 {
-  "name": "evaluation",
+  "name": "@midscene/evaluation",
   "private": true,
   "scripts": {
-    "update-page-data:headless": "playwright test ./data-generator/generator-headless.spec.ts",
-    "update-page-data:headed": "playwright test ./data-generator/generator-headed.spec.ts --headed",
-    "evaluate:inspect": "npx vitest --run tests/llm-inspect.test.ts",
-    "evaluate:inspect:update": "UPDATE_AI_DATA=true npm run evaluate:inspect",
+    "update-page-data:headless": "playwright test ./data-generator/generator-headless.spec.ts && npm run format",
+    "update-page-data:headed": "playwright test ./data-generator/generator-headed.spec.ts --headed && npm run format",
+    "update-answer-data": "npm run update-answer-data:locator:coord && npm run update-answer-data:locator:element && npm run format",
+    "update-answer-data:locator:coord": "UPDATE_ANSWER_DATA=true MIDSCENE_USE_QWEN_VL=1 npm run evaluate:locator && npm run format",
+    "update-answer-data:locator:element": "UPDATE_ANSWER_DATA=true npm run evaluate:locator && npm run format",
+    "update-answer-data:planning:coord": "UPDATE_ANSWER_DATA=true MIDSCENE_USE_QWEN_VL=1 npm run evaluate:planning && npm run format",
+    "update-answer-data:planning:element": "UPDATE_ANSWER_DATA=true npm run evaluate:planning && npm run format",
+    "update-answer-data:assertion": "UPDATE_ANSWER_DATA=true npm run evaluate:assertion && npm run format",
+    "evaluate:locator": "npx vitest --run tests/llm-locator.test.ts",
+    "evaluate:planning": "npx vitest --run tests/llm-planning.test.ts",
     "evaluate:assertion": "npx vitest --run tests/assertion.test.ts",
-    "evaluate:assertion:update": "UPDATE_AI_DATA=true npm run evaluate:assertion"
+    "format": "cd ../.. && npm run lint"
   },
+  "files": ["dist", "README.md"],
+  "type": "module",
   "dependencies": {
     "@midscene/core": "workspace:*",
     "@midscene/shared": "workspace:*",
@@ -19,7 +27,7 @@
     "playwright": "1.44.1",
     "@playwright/test": "^1.44.1",
     "typescript": "~5.0.4",
-    "vitest": "^1.6.0"
+    "vitest": "3.0.5"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -29,5 +37,5 @@
     "registry": "https://registry.npmjs.org"
   },
   "license": "MIT",
-  "version": "0.11.1"
+  "version": "0.12.7"
 }

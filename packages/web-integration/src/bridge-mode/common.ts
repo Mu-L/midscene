@@ -11,14 +11,15 @@ export enum BridgeEvent {
   Refused = 'bridge-refused',
   ConnectNewTabWithUrl = 'connectNewTabWithUrl',
   ConnectCurrentTab = 'connectCurrentTab',
+  SetDestroyOptions = 'setDestroyOptions',
 }
 
 export interface BridgeConnectTabOptions {
   /**
    * If true, the page will always track the active tab.
-   * @default false
+   * @default true
    */
-  trackingActiveTab?: boolean;
+  forceSameTabNavigation?: boolean;
 }
 
 export enum MouseEvent {

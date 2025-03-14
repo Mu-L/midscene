@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import { Buffer } from 'node:buffer';
 import getJimp from './get-jimp';
 
@@ -49,13 +50,18 @@ export async function transformImgPathToBase64(inputPath: string) {
  */
 export async function resizeImg(
   inputData: Buffer,
-  newSize?: {
+  newSize: {
     width: number;
     height: number;
   },
 ): Promise<Buffer> {
   if (typeof inputData === 'string')
     throw Error('inputData is base64, use resizeImgBase64 instead');
+
+  assert(
+    newSize && newSize.width > 0 && newSize.height > 0,
+    'newSize must be positive',
+  );
 
   const Jimp = await getJimp();
   const image = await Jimp.read(inputData);
@@ -65,28 +71,35 @@ export async function resizeImg(
     throw Error('Undefined width or height from the input image.');
   }
 
-  const finalNewSize = newSize || calculateNewDimensions(width, height);
+  if (newSize.width === width && newSize.height === height) {
+    return inputData;
+  }
 
-  image.resize(
-    finalNewSize.width,
-    finalNewSize.height,
-    Jimp.RESIZE_NEAREST_NEIGHBOR,
-  );
+  image.resize(newSize.width, newSize.height, Jimp.RESIZE_NEAREST_NEIGHBOR);
   image.quality(90);
   const resizedBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
 
   return resizedBuffer;
 }
 
+export async function bufferFromBase64(base64: string) {
+  const splitFlag = ';base64,';
+  const dataSplitted = base64.split(splitFlag);
+  if (dataSplitted.length !== 2) {
+    throw Error('Invalid base64 data');
+  }
+  return Buffer.from(dataSplitted[1], 'base64');
+}
+
 export async function resizeImgBase64(
-  inputData: string,
-  newSize?: {
+  inputBase64: string,
+  newSize: {
     width: number;
     height: number;
   },
 ): Promise<string> {
   const splitFlag = ';base64,';
-  const dataSplitted = inputData.split(splitFlag);
+  const dataSplitted = inputBase64.split(splitFlag);
   if (dataSplitted.length !== 2) {
     throw Error('Invalid base64 data');
   }
@@ -109,10 +122,7 @@ export async function resizeImgBase64(
  * @returns {Object} An object containing the new width and height.
  * @throws {Error} Throws an error if the width or height is not a positive number.
  */
-export function calculateNewDimensions(
-  originalWidth: number,
-  originalHeight: number,
-) {
+export function zoomForGPT4o(originalWidth: number, originalHeight: number) {
   // In low mode, the image is scaled to 512x512 pixels and 85 tokens are used to represent the image.
   // In high mode, the model looks at low-resolution images and then creates detailed crop images, using 170 tokens for each 512x512 pixel tile. In practical applications, it is recommended to control the image size within 2048x768 pixels
   const maxWidth = 2048; // Maximum width
@@ -181,91 +191,28 @@ export async function trimImage(image: string | Buffer): Promise<{
   };
 }
 
-/**
- * Aligns an image's coordinate system based on trimming information
- *
- * This function takes an image and a center rectangle as input. It first extracts the center
- * rectangle from the image using Jimp and converts it to a buffer. Then, it calls
- * the trimImage function to obtain the trimming information of the buffer image. If there is no
- * trimming information, the original center rectangle is returned. If there is trimming information,
- * a new rectangle is created based on the trimming information, with its top-left corner
- * positioned at the negative offset of the trimming from the original center rectangle's top-left
- * corner, and its width and height set to the trimmed image's dimensions.
- *
- * @param image The image file path or buffer to be processed
- * @param center The center rectangle of the image, which is used to extract and align
- * @returns A Promise that resolves to a rectangle object representing the aligned coordinates
- * @throws Error if there is an error during image processing
- */
-// export async function alignCoordByTrim(
-//   image: string | Buffer,
-//   centerRect: Rect,
-// ): Promise<Rect> {
-//   const isBuffer = Buffer.isBuffer(image);
-//   let jimpImage;
-//   if (isBuffer) {
-//     jimpImage = await Jimp.read(image);
-//   } else {
-//     jimpImage = await Jimp.read(image);
-//   }
+export function prependBase64Header(base64: string, mimeType = 'image/png') {
+  return `data:${mimeType};base64,${base64}`;
+}
 
-//   const { width, height } = jimpImage.bitmap;
-//   if (width <= 3 || height <= 3) {
-//     return centerRect;
-//   }
-//   const zeroSize: Rect = {
-//     left: 0,
-//     top: 0,
-//     width: -1,
-//     height: -1,
-//   };
-//   const finalCenterRect: Rect = { ...centerRect };
-//   if (centerRect.left > width || centerRect.top > height) {
-//     return zeroSize;
-//   }
+export async function paddingToMatchBlock(imageBase64: string, blockSize = 28) {
+  const Jimp = await getJimp();
+  const imageBuffer = await bufferFromBase64(imageBase64);
+  const image = await Jimp.read(imageBuffer);
+  const { width, height } = image.bitmap;
 
-//   if (finalCenterRect.left < 0) {
-//     finalCenterRect.width += finalCenterRect.left;
-//     finalCenterRect.left = 0;
-//   }
+  const targetWidth = Math.ceil(width / blockSize) * blockSize;
+  const targetHeight = Math.ceil(height / blockSize) * blockSize;
 
-//   if (finalCenterRect.top < 0) {
-//     finalCenterRect.height += finalCenterRect.top;
-//     finalCenterRect.top = 0;
-//   }
+  if (targetWidth === width && targetHeight === height) {
+    return imageBase64;
+  }
 
-//   if (finalCenterRect.left + finalCenterRect.width > width) {
-//     finalCenterRect.width = width - finalCenterRect.left;
-//   }
-//   if (finalCenterRect.top + finalCenterRect.height > height) {
-//     finalCenterRect.height = height - finalCenterRect.top;
-//   }
+  const paddedImage = new Jimp(targetWidth, targetHeight, 0xffffffff);
 
-//   if (finalCenterRect.width <= 3 || finalCenterRect.height <= 3) {
-//     return finalCenterRect;
-//   }
+  // Composite the original image onto the new canvas
+  paddedImage.composite(image, 0, 0);
 
-//   try {
-//     const croppedImage = jimpImage.crop(
-//       centerRect.left,
-//       centerRect.top,
-//       centerRect.width,
-//       centerRect.height,
-//     );
-//     const buffer = await croppedImage.getBufferAsync(Jimp.MIME_PNG);
-//     const trimInfo = await trimImage(buffer);
-//     if (!trimInfo) {
-//       return centerRect;
-//     }
-
-//     return {
-//       left: centerRect.left - trimInfo.trimOffsetLeft,
-//       top: centerRect.top - trimInfo.trimOffsetTop,
-//       width: trimInfo.width,
-//       height: trimInfo.height,
-//     };
-//   } catch (e) {
-//     console.log(jimpImage.bitmap);
-//     throw e;
-//   }
-// }
+  const base64 = await paddedImage.getBase64Async(Jimp.MIME_JPEG);
+  return base64;
+}
